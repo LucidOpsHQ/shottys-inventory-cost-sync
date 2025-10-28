@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import json
+import os
 
 
 def scrape_markov_inventory(
@@ -172,7 +173,8 @@ def transform_dashboard_data(dashboard_data: Dict) -> List[Dict]:
 
 
         # Filter by date
-        if 'Date' in obj and obj['Date'].startswith(date_now) and obj['Owner'] in ['SHOTTYS', 'IMPACKFUL']:
+        # if 'Date' in obj and obj['Date'].startswith(date_now) and obj['Owner'] in ['SHOTTYS', 'IMPACKFUL']:
+        if  obj['Owner'] in ['SHOTTYS', 'MARKETING', 'IMPACKFUL']:
             output.append(obj)
 
     # Convert to inventory format and aggregate
@@ -180,7 +182,7 @@ def transform_dashboard_data(dashboard_data: Dict) -> List[Dict]:
     for d in output:
         item_code = d.get('ItemCode', '')
         sublot = d.get('Sublot', '0')
-        key = f"{item_code}-{sublot}-{obj['Owner']}-{d.get('Date', '')[:10]}"
+        key = f"{item_code}-{sublot}-{d.get('Owner', '')}-{d.get('Date', '')[:10]}"
         date = d.get('Date', '')[:10]
         qty = float(d.get('Qty', 0)) if d.get('Qty') else 0
         actual_value = float(d.get('ActualValue', 0)) if d.get('ActualValue') else 0
@@ -212,7 +214,42 @@ def transform_dashboard_data(dashboard_data: Dict) -> List[Dict]:
         else:
             aggregated[item_id] = item
 
-    return list(aggregated.values())
+    # Sort by date (most recent first)
+    sorted_items = sorted(aggregated.values(), key=lambda x: x['date'], reverse=True)
+    
+    return sorted_items
+
+
+def write_inventory_to_file(inventory_data: List[Dict], filename: str = None) -> str:
+    """
+    Write inventory data to a JSON file.
+    
+    Args:
+        inventory_data: List of inventory records to write
+        filename: Optional filename. If not provided, generates timestamp-based filename
+        
+    Returns:
+        The filename that was written to
+    """
+    if filename is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"inventory_data_{timestamp}.json"
+    
+    # Ensure filename has .json extension
+    if not filename.endswith('.json'):
+        filename += '.json'
+    
+    try:
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(inventory_data, f, indent=2, ensure_ascii=False)
+        
+        print(f"Inventory data written to: {filename}")
+        print(f"Total records written: {len(inventory_data)}")
+        return filename
+        
+    except Exception as e:
+        print(f"Error writing inventory data to file: {e}")
+        raise
 
 
 if __name__ == "__main__":
@@ -220,8 +257,13 @@ if __name__ == "__main__":
     try:
         inventory_data = scrape_markov_inventory()
         print(f"\nSuccessfully scraped {len(inventory_data)} inventory items")
+        
+        # Write inventory data to file
+        filename = write_inventory_to_file(inventory_data)
+        
         print("\nSample records:")
         for item in inventory_data[:3]:
             print(json.dumps(item, indent=2))
+            
     except Exception as e:
         print(f"Failed to scrape inventory: {e}")
