@@ -5,6 +5,33 @@ import psycopg2
 from psycopg2.extras import execute_values
 from typing import List, Dict
 import os
+from datetime import datetime, timedelta
+
+
+def cleanup_old_records(cursor, date_to_keep: str) -> int:
+    """
+    Delete records that are not end-of-month and not the specified date.
+    
+    Args:
+        cursor: Database cursor
+        date_to_keep: Date to keep in YYYY-MM-DD format (typically yesterday's date)
+        
+    Returns:
+        Number of records deleted
+    """
+    delete_query = """
+        DELETE FROM inventory_cost 
+        WHERE date::date != (
+            date_trunc('month', date::date) + INTERVAL '1 month' - INTERVAL '1 day'
+        )
+        AND date::date != %s
+    """
+    
+    cursor.execute(delete_query, (date_to_keep,))
+    deleted_count = cursor.rowcount
+    
+    print(f"Cleaned up {deleted_count} old records (kept only end-of-month and yesterday's records)")
+    return deleted_count
 
 
 def upload_inventory_to_postgres(
@@ -80,9 +107,13 @@ def upload_inventory_to_postgres(
         print(f"Uploading {len(records)} records to database...")
         execute_values(cursor, upsert_query, records)
 
+        # Clean up old records (keep only end-of-month and yesterday's records)
+        yesterday_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        deleted_count = cleanup_old_records(cursor, yesterday_date)
+
         # Commit the transaction
         conn.commit()
-        print(f"Successfully uploaded {len(records)} records")
+        print(f"Successfully uploaded {len(records)} records and cleaned up {deleted_count} old records")
 
         return len(records)
 
@@ -96,6 +127,59 @@ def upload_inventory_to_postgres(
         if conn:
             conn.rollback()
         print(f"Error uploading to PostgreSQL: {e}")
+        raise
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+def cleanup_database(database_url: str = None) -> int:
+    """
+    Standalone function to clean up old records from the database.
+    
+    Args:
+        database_url: PostgreSQL connection string (defaults to DATABASE_URL env var)
+        
+    Returns:
+        Number of records deleted
+    """
+    if database_url is None:
+        database_url = os.environ.get('DATABASE_URL')
+
+    if not database_url:
+        raise ValueError("DATABASE_URL not provided and not found in environment")
+
+    conn = None
+    cursor = None
+
+    try:
+        # Connect to PostgreSQL
+        print(f"Connecting to PostgreSQL database...")
+        conn = psycopg2.connect(database_url)
+        cursor = conn.cursor()
+
+        # Clean up old records
+        yesterday_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        deleted_count = cleanup_old_records(cursor, yesterday_date)
+
+        # Commit the transaction
+        conn.commit()
+        print(f"Successfully cleaned up {deleted_count} old records")
+        return deleted_count
+
+    except psycopg2.Error as e:
+        if conn:
+            conn.rollback()
+        print(f"Database error: {e}")
+        raise
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Error cleaning up database: {e}")
         raise
 
     finally:
@@ -137,6 +221,17 @@ def test_connection(database_url: str = None) -> bool:
 
 
 if __name__ == "__main__":
-    # Test connection
-    print("Testing database connection...")
-    test_connection()
+    import sys
+    
+    if len(sys.argv) > 1 and sys.argv[1] == "cleanup":
+        # Test cleanup functionality
+        print("Testing database cleanup...")
+        try:
+            deleted_count = cleanup_database()
+            print(f"Cleanup completed. Deleted {deleted_count} records.")
+        except Exception as e:
+            print(f"Cleanup failed: {e}")
+    else:
+        # Test connection
+        print("Testing database connection...")
+        test_connection()

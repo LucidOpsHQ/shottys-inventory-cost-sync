@@ -173,8 +173,7 @@ def transform_dashboard_data(dashboard_data: Dict) -> List[Dict]:
 
 
         # Filter by date
-        # if 'Date' in obj and obj['Date'].startswith(date_now) and obj['Owner'] in ['SHOTTYS', 'IMPACKFUL']:
-        if  obj['Owner'] in ['SHOTTYS', 'MARKETING', 'IMPACKFUL']:
+        if 'Date' in obj and obj['Date'].startswith(date_now) and obj['Owner'] in ['SHOTTYS', 'IMPACKFUL']:
             output.append(obj)
 
     # Convert to inventory format and aggregate
