@@ -78,6 +78,8 @@ def upload_inventory_to_postgres(
                 item.get('unit'),             # unit
                 item.get('actual_unit_cost'), # actual_unit_cost
                 item.get('actual_value'),     # actual_value
+                item.get('standard_value'),   # standard_value
+                item.get('standard_unit_cost'), # standard_unit_cost
                 item.get('date'),             # date
                 item.get('area'),             # area
                 item.get('item')              # item
@@ -88,7 +90,7 @@ def upload_inventory_to_postgres(
         upsert_query = """
             INSERT INTO inventory_cost (
                 key, gl_group, type, qty, unit,
-                actual_unit_cost, actual_value, date, area, item
+                actual_unit_cost, actual_value, standard_value, standard_unit_cost, date, area, item
             )
             VALUES %s
             ON CONFLICT (key)
@@ -99,6 +101,8 @@ def upload_inventory_to_postgres(
                 unit = EXCLUDED.unit,
                 actual_unit_cost = EXCLUDED.actual_unit_cost,
                 actual_value = EXCLUDED.actual_value,
+                standard_value = EXCLUDED.standard_value,
+                standard_unit_cost = EXCLUDED.standard_unit_cost,
                 date = EXCLUDED.date,
                 area = EXCLUDED.area,
                 item = EXCLUDED.item

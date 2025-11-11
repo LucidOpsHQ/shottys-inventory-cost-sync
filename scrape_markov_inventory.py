@@ -185,9 +185,13 @@ def transform_dashboard_data(dashboard_data: Dict) -> List[Dict]:
         date = d.get('Date', '')[:10]
         qty = float(d.get('Qty', 0)) if d.get('Qty') else 0
         actual_value = float(d.get('ActualValue', 0)) if d.get('ActualValue') else 0
+        standard_value = float(d.get('StandardValue', 0)) if d.get('StandardValue') else 0
         actual_unit_cost = 0
+        standard_unit_cost = 0
         if qty and actual_value:
             actual_unit_cost = actual_value / qty
+        if qty and standard_value:
+            standard_unit_cost = standard_value / qty
         inventory_items.append({
             'key': key,
             'date': date,
@@ -196,6 +200,8 @@ def transform_dashboard_data(dashboard_data: Dict) -> List[Dict]:
             'qty': qty,
             'actual_value': actual_value,
             'actual_unit_cost': actual_unit_cost,
+            'standard_value': standard_value,
+            'standard_unit_cost': standard_unit_cost,
             'gl_group': d.get('GLGroup'),
             'type': d.get('Type', ''),
             'unit': d.get('Unit', '')
@@ -208,7 +214,9 @@ def transform_dashboard_data(dashboard_data: Dict) -> List[Dict]:
         if item_id in aggregated:
             aggregated[item_id]['qty'] += item['qty']
             aggregated[item_id]['actual_value'] += item['actual_value']
+            aggregated[item_id]['standard_value'] += item['standard_value']
             aggregated[item_id]['actual_unit_cost'] = aggregated[item_id]['actual_value'] / aggregated[item_id]['qty']
+            aggregated[item_id]['standard_unit_cost'] = aggregated[item_id]['standard_value'] / aggregated[item_id]['qty']
 
         else:
             aggregated[item_id] = item
@@ -254,7 +262,7 @@ def write_inventory_to_file(inventory_data: List[Dict], filename: str = None) ->
 if __name__ == "__main__":
     # Example usage
     try:
-        inventory_data = scrape_markov_inventory()
+        inventory_data = scrape_markov_inventory(company=os.getenv('MARKOV_COMPANY', ''), email=os.getenv('MARKOV_EMAIL', ''), password=os.getenv('MARKOV_PASSWORD'))
         print(f"\nSuccessfully scraped {len(inventory_data)} inventory items")
         
         # Write inventory data to file
